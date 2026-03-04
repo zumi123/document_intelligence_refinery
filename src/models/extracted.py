@@ -10,6 +10,24 @@ class BBox(BaseModel):
     x1: float = 0.0
     bottom: float = 0.0
 
+    @classmethod
+    def from_rect(cls, x0: float, top: float, x1: float, bottom: float) -> "BBox":
+        """Build from four coordinates (e.g. page.rect or union of chars)."""
+        return cls(x0=float(x0), top=float(top), x1=float(x1), bottom=float(bottom))
+
+    @classmethod
+    def from_sequence(cls, seq) -> Optional["BBox"]:
+        """Build from [x0, top, x1, bottom] or (x0, top, x1, bottom)."""
+        if seq is None:
+            return None
+        try:
+            s = list(seq)
+            if len(s) < 4:
+                return None
+            return cls(x0=float(s[0]), top=float(s[1]), x1=float(s[2]), bottom=float(s[3]))
+        except (TypeError, ValueError):
+            return None
+
 
 class TextBlock(BaseModel):
     """A text region with optional bounding box and page reference."""

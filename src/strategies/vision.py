@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Optional
 
 from src.models import ExtractedDocument, TextBlock, TableBlock, FigureBlock
+from src.models.extracted import BBox
 from src.strategies.base import BaseExtractor, ExtractionResult
 
 
@@ -53,37 +54,44 @@ class VisionExtractor(BaseExtractor):
             import fitz
             doc = fitz.open(pdf_path)
             num_pages = len(doc)
-            doc.close()
         except Exception:
-            num_pages = 0
+            doc = None
 
-        if num_pages == 0:
+        if num_pages == 0 or doc is None:
+            if doc is not None:
+                doc.close()
             return self._make_result(
                 document_id, text_blocks, tables, figures, 0, spent_usd, confidence=0.0, error="could not open PDF"
             )
 
-        # Apply page cap from config (early stopping limit)
-        pages_to_process = num_pages
-        if self.max_pages_per_document > 0:
-            pages_to_process = min(num_pages, self.max_pages_per_document)
+        try:
+            # Apply page cap from config (early stopping limit)
+            pages_to_process = num_pages
+            if self.max_pages_per_document > 0:
+                pages_to_process = min(num_pages, self.max_pages_per_document)
 
-        for page_idx in range(pages_to_process):
-            page_num = page_idx + 1
-            cost_this_page = self.cost_per_page_usd
-            if spent_usd + cost_this_page > self.max_usd_per_document:
-                self._budget_exceeded = True
-                break
-            try:
-                # Stub: in production, call VLM API here; on failure append to _page_failures
-                block = TextBlock(
-                    text="[VLM extraction stub: implement OpenRouter call]",
-                    page=page_num,
-                    reading_order_index=page_idx,
-                )
-                text_blocks.append(block)
-                spent_usd += cost_this_page
-            except Exception as e:
-                self._page_failures.append(page_num)
+            for page_idx in range(pages_to_process):
+                page_num = page_idx + 1
+                cost_this_page = self.cost_per_page_usd
+                if spent_usd + cost_this_page > self.max_usd_per_document:
+                    self._budget_exceeded = True
+                    break
+                try:
+                    page = doc[page_idx]
+                    rect = page.rect
+                    page_bbox = BBox.from_rect(rect.x0, rect.y0, rect.x1, rect.y1)
+                    block = TextBlock(
+                        text="[VLM extraction stub: implement OpenRouter call]",
+                        page=page_num,
+                        bbox=page_bbox,
+                        reading_order_index=page_idx,
+                    )
+                    text_blocks.append(block)
+                    spent_usd += cost_this_page
+                except Exception:
+                    self._page_failures.append(page_num)
+        finally:
+            doc.close()
 
         num_processed = len(text_blocks)
         confidence = 0.8 if num_processed > 0 else 0.0

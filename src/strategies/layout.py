@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Optional
 
 from src.models import ExtractedDocument, TextBlock, TableBlock, FigureBlock
+from src.models.extracted import BBox
 from src.strategies.base import BaseExtractor, ExtractionResult
 
 
@@ -36,6 +37,27 @@ def _safe_caption(obj) -> Optional[str]:
         return str(obj.caption).strip()
     if hasattr(obj, "title") and obj.title:
         return str(obj.title).strip()
+    return None
+
+
+def _safe_bbox(obj) -> Optional[BBox]:
+    """Extract bounding box from Docling element for spatial provenance."""
+    if obj is None:
+        return None
+    if hasattr(obj, "bbox") and obj.bbox is not None:
+        b = obj.bbox
+        if hasattr(b, "__iter__") and len(list(b)) >= 4:
+            return BBox.from_sequence(list(b))
+        if hasattr(b, "l") and hasattr(b, "t"):
+            return BBox(x0=getattr(b, "l", 0), top=getattr(b, "t", 0), x1=getattr(b, "r", 0), bottom=getattr(b, "b", 0))
+    if hasattr(obj, "bounds") and obj.bounds:
+        b = obj.bounds
+        if hasattr(b, "__iter__"):
+            return BBox.from_sequence(list(b))
+    if hasattr(obj, "prov") and getattr(obj, "prov", None):
+        p = obj.prov
+        if hasattr(p, "bbox"):
+            return _safe_bbox(p.bbox)
     return None
 
 
@@ -73,8 +95,11 @@ class LayoutExtractor(BaseExtractor):
         try:
             md = doc.export_to_markdown()
             num_pages = len(doc.pages) if hasattr(doc, "pages") and doc.pages else 0
+            text_bbox = None
+            if num_pages and hasattr(doc, "pages") and doc.pages:
+                text_bbox = _safe_bbox(doc.pages[0])
             text_blocks.append(
-                TextBlock(text=md[:50000], page=1, bbox=None, reading_order_index=0)
+                TextBlock(text=md[:50000], page=1, bbox=text_bbox, reading_order_index=0)
             )
         except Exception as e:
             errors.append(f"markdown export: {e}")
@@ -88,6 +113,7 @@ class LayoutExtractor(BaseExtractor):
                             headers=headers,
                             rows=rows,
                             page=getattr(t, "page", 1) or 1,
+                            bbox=_safe_bbox(t),
                             reading_order_index=len(tables),
                         )
                     )
@@ -102,6 +128,7 @@ class LayoutExtractor(BaseExtractor):
                         FigureBlock(
                             caption=caption,
                             page=getattr(fig, "page", 1) or 1,
+                            bbox=_safe_bbox(fig),
                             reading_order_index=len(figures),
                         )
                     )

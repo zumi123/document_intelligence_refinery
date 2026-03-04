@@ -54,11 +54,12 @@ class FastTextExtractor(BaseExtractor):
                         for img in page.images
                     )
                     total_image_area += img_area
+                    page_bbox = BBox.from_rect(0, 0, page.width, page.height)
                     text_blocks.append(
                         TextBlock(
                             text=text,
                             page=i + 1,
-                            bbox=None,
+                            bbox=page_bbox,
                             reading_order_index=i,
                         )
                     )
@@ -78,8 +79,9 @@ class FastTextExtractor(BaseExtractor):
                         b = img.get("bbox")
                         if b:
                             total_image_area += (b[2] - b[0]) * (b[3] - b[1])
+                    page_bbox = BBox.from_rect(rect.x0, rect.y0, rect.x1, rect.y1)
                     text_blocks.append(
-                        TextBlock(text=text, page=i + 1, bbox=None, reading_order_index=i)
+                        TextBlock(text=text, page=i + 1, bbox=page_bbox, reading_order_index=i)
                     )
                 doc.close()
             except Exception:
