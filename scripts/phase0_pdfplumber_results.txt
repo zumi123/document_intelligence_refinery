@@ -1,0 +1,14 @@
+Phase 0 analysis (for DOMAIN_NOTES.md)
+
+File: CBE ANNUAL REPORT 2023-24.pdf
+  {'num_pages': 161, 'total_chars': 273879, 'chars_per_page_avg': 1701.1, 'char_density_avg': 0.003394, 'total_image_area_ratio': 0.1084, 'min_chars_page': 0, 'max_chars_page': 3788}
+
+File: Audit Report - 2023.pdf
+  {'num_pages': 95, 'total_chars': 106, 'chars_per_page_avg': 1.1, 'char_density_avg': 2e-06, 'total_image_area_ratio': 0.9895, 'min_chars_page': 0, 'max_chars_page': 106}
+
+File: fta_performance_survey_final_report_2022.pdf
+  {'num_pages': 155, 'total_chars': 221391, 'chars_per_page_avg': 1428.3, 'char_density_avg': 0.00285, 'total_image_area_ratio': 0.0826, 'min_chars_page': 60, 'max_chars_page': 5006}
+
+File: tax_expenditure_ethiopia_2021_22.pdf
+  {'num_pages': 60, 'total_chars': 88735, 'chars_per_page_avg': 1478.9, 'char_density_avg': 0.002952, 'total_image_area_ratio': 0.0007, 'min_chars_page': 104, 'max_chars_page': 2743}
+

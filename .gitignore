@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# Distribution / install
+build/
+dist/
+*.egg-info/
+*.egg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Refinery artifacts (regenerate in Colab with scripts/run_interim_artifacts.py)
+.refinery/profiles/
+.refinery/pageindex/
+.refinery/*.jsonl
+
+# Keep .refinery folder structure
+!.refinery/.gitkeep
+
+# Large data (upload in Colab or use Git LFS)
+data/*.pdf
+
+# Keep data folder and manifest
+!data/CORPUS_MANIFEST.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Test / coverage
+.coverage
+htmlcov/
+.pytest_cache/

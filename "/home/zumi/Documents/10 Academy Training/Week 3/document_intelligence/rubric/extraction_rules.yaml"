@@ -1,0 +1,21 @@
+thresholds:
+  # Minimum characters per page to consider fast text extraction reliable
+  min_chars_per_page: 100
+
+  # Maximum fraction of page area that can be covered by images
+  max_image_area_ratio: 0.5
+
+  # Confidence thresholds for routing / escalation
+  fast_text_min_confidence: 0.7
+  layout_min_confidence: 0.7
+
+chunking:
+  # Maximum tokens per logical document unit (LDU)
+  max_tokens_per_ldu: 512
+
+  # Whether to keep numbered lists as single LDUs when under token budget
+  keep_numbered_lists_together: true
+
+  # Whether to attach figure captions as metadata to figure chunks
+  attach_captions_to_figures: true
+
