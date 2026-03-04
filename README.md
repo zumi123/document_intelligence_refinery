@@ -71,11 +71,3 @@ pytest tests/ -v
 ```
 
 Tests cover Triage Agent classification (origin_type, layout_complexity) and extraction confidence scoring (FastTextExtractor confidence, ExtractionRouter strategy selection and ledger).
-
-### Report (interim PDF)
-
-Use `DOMAIN_NOTES.md`: export to PDF or copy sections:
-
-1. Domain Notes (decision tree, failure modes, pipeline diagram)
-2. Architecture diagram (Section 5 Mermaid)
-3. Cost analysis (Section 7 table)
