@@ -1,12 +1,50 @@
-"""Strategy B: Layout-aware extraction using Docling."""
+"""Strategy B: Layout-aware extraction using Docling. Preserves table headers and figure captions."""
 from pathlib import Path
+from typing import Optional
 
 from src.models import ExtractedDocument, TextBlock, TableBlock, FigureBlock
 from src.strategies.base import BaseExtractor, ExtractionResult
 
 
+def _safe_headers_rows(obj):
+    """Normalize table-like object to headers + rows; preserve headers rigorously."""
+    headers = []
+    rows = []
+    if hasattr(obj, "headers") and obj.headers is not None:
+        headers = list(obj.headers) if not isinstance(obj.headers, list) else obj.headers
+    if hasattr(obj, "rows") and obj.rows is not None:
+        raw = obj.rows if isinstance(obj.rows, list) else list(obj.rows)
+        for r in raw:
+            if isinstance(r, (list, tuple)):
+                rows.append([str(c) for c in r])
+            else:
+                rows.append([str(r)])
+    if hasattr(obj, "data") and not rows and not headers:
+        data = obj.data
+        if isinstance(data, list) and len(data) > 0:
+            first = data[0]
+            if isinstance(first, (list, tuple)):
+                headers = [str(c) for c in first]
+                for r in data[1:]:
+                    rows.append([str(c) for c in r] if isinstance(r, (list, tuple)) else [str(r)])
+    return headers, rows
+
+
+def _safe_caption(obj) -> Optional[str]:
+    """Extract figure caption; preserve for figure chunk metadata."""
+    if hasattr(obj, "caption") and obj.caption:
+        return str(obj.caption).strip()
+    if hasattr(obj, "title") and obj.title:
+        return str(obj.title).strip()
+    return None
+
+
 class LayoutExtractor(BaseExtractor):
-    """Docling-based extraction; tables and structure preserved."""
+    """
+    Docling-based extraction. Table headers and figure captions are rigorously
+    preserved in the normalized schema. Per-document and per-table/per-figure
+    errors are caught so partial results can be returned.
+    """
 
     @property
     def name(self) -> str:
@@ -17,35 +55,81 @@ class LayoutExtractor(BaseExtractor):
         tables: list[TableBlock] = []
         figures: list[FigureBlock] = []
         num_pages = 0
+        errors: list[str] = []
+        confidence = 0.0
+
         try:
             from docling.document_converter import DocumentConverter
             converter = DocumentConverter()
             result = converter.convert(str(pdf_path))
             doc = result.document
+        except ImportError as e:
+            errors.append(f"docling not installed: {e}")
+            return self._result(document_id, text_blocks, tables, figures, 0, 0.0, errors)
+        except Exception as e:
+            errors.append(f"conversion failed: {e}")
+            return self._result(document_id, text_blocks, tables, figures, 0, 0.3, errors)
+
+        try:
             md = doc.export_to_markdown()
             num_pages = len(doc.pages) if hasattr(doc, "pages") and doc.pages else 0
-            # Single text block from full markdown for now; can be split by section later
             text_blocks.append(
                 TextBlock(text=md[:50000], page=1, bbox=None, reading_order_index=0)
             )
-            if hasattr(doc, "tables") and doc.tables:
-                for t in doc.tables:
-                    headers = getattr(t, "headers", []) or []
-                    rows = getattr(t, "rows", []) or []
+        except Exception as e:
+            errors.append(f"markdown export: {e}")
+
+        if hasattr(doc, "tables") and doc.tables:
+            for i, t in enumerate(doc.tables):
+                try:
+                    headers, rows = _safe_headers_rows(t)
                     tables.append(
-                        TableBlock(headers=list(headers), rows=list(rows), page=1, reading_order_index=len(tables))
+                        TableBlock(
+                            headers=headers,
+                            rows=rows,
+                            page=getattr(t, "page", 1) or 1,
+                            reading_order_index=len(tables),
+                        )
                     )
-            confidence = 0.85 if num_pages else 0.0
-        except ImportError:
-            confidence = 0.0
-        except Exception:
-            confidence = 0.3
+                except Exception as e:
+                    errors.append(f"table {i}: {e}")
+
+        if getattr(doc, "figures", None):
+            for i, fig in enumerate(doc.figures):
+                try:
+                    caption = _safe_caption(fig)
+                    figures.append(
+                        FigureBlock(
+                            caption=caption,
+                            page=getattr(fig, "page", 1) or 1,
+                            reading_order_index=len(figures),
+                        )
+                    )
+                except Exception as e:
+                    errors.append(f"figure {i}: {e}")
+
+        if num_pages > 0 and not errors:
+            confidence = 0.85
+        elif num_pages > 0:
+            confidence = max(0.3, 0.85 - 0.1 * len(errors))
+        return self._result(document_id, text_blocks, tables, figures, num_pages or 1, confidence, errors)
+
+    def _result(
+        self,
+        document_id: str,
+        text_blocks: list,
+        tables: list,
+        figures: list,
+        num_pages: int,
+        confidence: float,
+        errors: list[str],
+    ) -> ExtractionResult:
         extracted = ExtractedDocument(
             document_id=document_id,
             text_blocks=text_blocks,
             tables=tables,
             figures=figures,
-            num_pages=num_pages or 1,
+            num_pages=num_pages,
             strategy_used=self.name,
             confidence_score=confidence,
         )

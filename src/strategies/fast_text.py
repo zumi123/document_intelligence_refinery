@@ -14,7 +14,13 @@ def _load_thresholds():
         return {"min_chars_per_page": 100, "max_image_area_ratio": 0.5}
     with open(path) as f:
         data = yaml.safe_load(f) or {}
-    return data.get("thresholds", {})
+    # Prefer fast_text section; fallback to thresholds (all from config)
+    ft = data.get("fast_text") or {}
+    th = data.get("thresholds") or {}
+    return {
+        "min_chars_per_page": ft.get("min_chars_per_page") or th.get("min_chars_per_page", 100),
+        "max_image_area_ratio": ft.get("max_image_area_ratio") or th.get("max_image_area_ratio", 0.5),
+    }
 
 
 class FastTextExtractor(BaseExtractor):

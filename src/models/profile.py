@@ -40,7 +40,7 @@ class DocumentProfile(BaseModel):
     layout_complexity: LayoutComplexity = Field(..., description="Single/multi-column, table/figure heavy")
     language_code: str = Field(default="en", description="Detected language code (e.g. ISO 639-1)")
     language_confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Language detection confidence")
-    domain_hint: DomainHint = Field(default=DomainHint.GENERAL, description="Domain for extraction prompt strategy")
+    domain_hint: str = Field(default="general", description="Domain for extraction prompt; from config domain_keywords (pluggable).")
     estimated_extraction_cost: EstimatedExtractionCost = Field(
         ..., description="Derived from strategy: A / B / C"
     )

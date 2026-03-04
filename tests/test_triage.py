@@ -3,7 +3,7 @@ import pytest
 from pathlib import Path
 
 from src.agents.triage import triage_document
-from src.models import OriginType, LayoutComplexity, EstimatedExtractionCost, DomainHint
+from src.models import OriginType, LayoutComplexity, EstimatedExtractionCost
 
 
 # Use project root to find data/

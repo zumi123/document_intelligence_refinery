@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from src.models import DocumentProfile, OriginType, LayoutComplexity, EstimatedExtractionCost, DomainHint
+from src.models import DocumentProfile, OriginType, LayoutComplexity, EstimatedExtractionCost
 from src.agents.triage import triage_document
 from src.agents.extractor import ExtractionRouter
 from src.strategies import FastTextExtractor, ExtractionResult

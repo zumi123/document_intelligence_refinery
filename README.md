@@ -57,7 +57,7 @@ python scripts/phase0_docling_analysis.py --light   # optional; use --light on l
 | `src/agents/triage.py` | Triage Agent (origin_type, layout_complexity, domain_hint) |
 | `src/agents/extractor.py` | ExtractionRouter with confidence-gated escalation |
 | `src/strategies/` | `FastTextExtractor`, `LayoutExtractor`, `VisionExtractor` |
-| `rubric/extraction_rules.yaml` | Thresholds and chunking constitution |
+| `rubric/extraction_rules.yaml` | Thresholds, chunking, **VLM budget caps**, **layout heuristics**, **domain_keywords** (edit only to onboard new domains) |
 | `data/` | PDF corpus; see `data/CORPUS_MANIFEST.md` |
 | `.refinery/profiles/` | DocumentProfile JSON outputs |
 | `.refinery/extraction_ledger.jsonl` | Extraction run log |

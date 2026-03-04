@@ -109,5 +109,7 @@ class ExtractionRouter:
             "cost_estimate_usd": result.cost_estimate_usd,
             "escalated": escalated,
             "num_pages": result.extracted.num_pages,
+            **({"vision_budget_exceeded": self.vision._budget_exceeded} if strategy_used == "vision" and hasattr(self.vision, "_budget_exceeded") else {}),
+            **({"vision_page_failures": self.vision._page_failures} if strategy_used == "vision" and getattr(self.vision, "_page_failures", None) else {}),
         })
         return result

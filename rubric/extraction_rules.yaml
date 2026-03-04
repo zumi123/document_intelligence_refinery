@@ -1,19 +1,113 @@
-# Extraction thresholds and chunking constitution (interim)
-# Document in DOMAIN_NOTES.md; adjust empirically per corpus.
+# =============================================================================
+# Extraction Rules & Chunking Constitution
+# =============================================================================
+# All tunable parameters live here. To onboard a new document domain or adjust
+# behaviour, edit this file only; no code changes required.
+# See DOMAIN_NOTES.md for rationale and empirical thresholds.
+# =============================================================================
 
+# -----------------------------------------------------------------------------
+# thresholds: Triage and extraction confidence gates
+# -----------------------------------------------------------------------------
+# min_chars_per_page: Below this, a page is treated as lacking a text layer
+#   (scanned). Used for origin_type and fast-text confidence.
+# max_image_area_ratio: Above this fraction of page area covered by images,
+#   fast text is considered unreliable; contributes to scanned_image detection.
+# fast_text_min_confidence: If FastTextExtractor returns confidence below this,
+#   router escalates to layout strategy.
+# layout_min_confidence: If LayoutExtractor returns confidence below this,
+#   router escalates to vision strategy.
+# -----------------------------------------------------------------------------
 thresholds:
   min_chars_per_page: 100
   max_image_area_ratio: 0.5
   fast_text_min_confidence: 0.7
   layout_min_confidence: 0.7
 
+# -----------------------------------------------------------------------------
+# layout_heuristics: Triage layout_complexity (no magic numbers in code)
+# -----------------------------------------------------------------------------
+# figure_heavy_image_ratio_min: If page image area ratio exceeds this,
+#   layout_complexity is set to figure_heavy.
+# table_heavy_chars_per_page_min: Combined with table_heavy_num_pages_min,
+#   documents with high char density and many pages are classified table_heavy.
+# table_heavy_num_pages_min: Minimum page count for table_heavy classification.
+# -----------------------------------------------------------------------------
+layout_heuristics:
+  figure_heavy_image_ratio_min: 0.3
+  table_heavy_chars_per_page_min: 1000
+  table_heavy_num_pages_min: 20
+
+# -----------------------------------------------------------------------------
+# chunking: Semantic chunking rules (Stage 3)
+# -----------------------------------------------------------------------------
+# max_tokens_per_ldu: Hard cap per logical document unit.
+# keep_numbered_lists_together: Do not split numbered lists across chunks.
+# attach_captions_to_figures: Store figure captions as metadata on figure chunks.
+# -----------------------------------------------------------------------------
 chunking:
   max_tokens_per_ldu: 512
   keep_numbered_lists_together: true
   attach_captions_to_figures: true
 
+# -----------------------------------------------------------------------------
+# domain_keywords: Domain hint classification (fully pluggable)
+# -----------------------------------------------------------------------------
+# Add or edit keys to onboard new domains. The triage agent scores each key
+# by keyword matches in the document sample; the highest-scoring key becomes
+# domain_hint. No code change needed: add a new key and list of keywords.
+# Known keys used in prompts: financial, legal, technical, medical, general.
+# -----------------------------------------------------------------------------
 domain_keywords:
-  financial: ["revenue", "expenditure", "balance sheet", "income statement", "fiscal", "audit", "annual report"]
-  legal: ["whereas", "hereby", "pursuant", "agreement", "clause", "party"]
-  technical: ["implementation", "assessment", "methodology", "findings", "recommendation"]
-  medical: ["patient", "clinical", "diagnosis", "treatment", "dosage"]
+  financial:
+    - revenue
+    - expenditure
+    - balance sheet
+    - income statement
+    - fiscal
+    - audit
+    - annual report
+  legal:
+    - whereas
+    - hereby
+    - pursuant
+    - agreement
+    - clause
+    - party
+  technical:
+    - implementation
+    - assessment
+    - methodology
+    - findings
+    - recommendation
+  medical:
+    - patient
+    - clinical
+    - diagnosis
+    - treatment
+    - dosage
+  general: []
+
+# -----------------------------------------------------------------------------
+# vision (VLM) budget: Hard caps for Strategy C
+# -----------------------------------------------------------------------------
+# max_usd_per_document: Hard cap per document; stop processing pages when
+#   cumulative cost would exceed this (early stopping).
+# max_pages_per_document: Optional cap on pages to process per document
+#   (0 or omit = no page cap).
+# cost_per_page_usd: Estimated cost per page for budget tracking.
+# -----------------------------------------------------------------------------
+vision:
+  max_usd_per_document: 2.0
+  max_pages_per_document: 100
+  cost_per_page_usd: 0.02
+
+# -----------------------------------------------------------------------------
+# fast_text: Strategy A tuning (optional overrides)
+# -----------------------------------------------------------------------------
+# Same as thresholds.min_chars_per_page / max_image_area_ratio; here for
+# explicit override per strategy if needed later.
+# -----------------------------------------------------------------------------
+fast_text:
+  min_chars_per_page: 100
+  max_image_area_ratio: 0.5

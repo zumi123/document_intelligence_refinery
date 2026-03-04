@@ -10,7 +10,6 @@ from src.models import (
     DocumentProfile,
     OriginType,
     LayoutComplexity,
-    DomainHint,
     EstimatedExtractionCost,
 )
 
@@ -83,20 +82,20 @@ def _analyze_pdf(path: Path) -> dict:
             return {"num_pages": 0, "total_chars": 0, "chars_per_page_avg": 0, "image_area_ratio": 0}
 
 
-def _domain_hint_from_text(text_sample: str, rules: dict) -> DomainHint:
-    """Keyword-based domain classifier; pluggable for VLM later."""
+def _domain_hint_from_text(text_sample: str, rules: dict) -> str:
+    """Keyword-based domain classifier. Any key in domain_keywords is valid (config-only onboarding)."""
     keywords = rules.get("domain_keywords") or {}
     text_lower = (text_sample or "").lower()[:5000]
-    scores = {}
+    best_key = "general"
+    best_score = 0
     for domain, words in keywords.items():
-        try:
-            hint = DomainHint(domain)
-        except ValueError:
+        if not isinstance(words, list):
             continue
-        scores[hint] = sum(1 for w in words if w.lower() in text_lower)
-    if not scores:
-        return DomainHint.GENERAL
-    return max(scores, key=scores.get) if max(scores.values()) > 0 else DomainHint.GENERAL
+        score = sum(1 for w in words if w and w.lower() in text_lower)
+        if score > best_score:
+            best_score = score
+            best_key = domain
+    return best_key
 
 
 def triage_document(
@@ -131,12 +130,17 @@ def triage_document(
     else:
         origin_type = OriginType.MIXED
 
-    # Layout complexity: simple heuristic (table_heavy/multi_column for native docs with moderate text)
+    # Layout complexity: from config only (no magic numbers)
+    layout_conf = rules.get("layout_heuristics") or {}
+    fig_ratio_min = layout_conf.get("figure_heavy_image_ratio_min", 0.3)
+    table_chars_min = layout_conf.get("table_heavy_chars_per_page_min", 1000)
+    table_pages_min = layout_conf.get("table_heavy_num_pages_min", 20)
+
     if origin_type == OriginType.SCANNED_IMAGE:
         layout_complexity = LayoutComplexity.MIXED
-    elif img_ratio > 0.3:
+    elif img_ratio > fig_ratio_min:
         layout_complexity = LayoutComplexity.FIGURE_HEAVY
-    elif chars_avg > 1000 and num_pages > 20:
+    elif chars_avg >= table_chars_min and num_pages >= table_pages_min:
         layout_complexity = LayoutComplexity.TABLE_HEAVY
     elif chars_avg >= min_chars:
         layout_complexity = LayoutComplexity.SINGLE_COLUMN
