@@ -39,6 +39,18 @@ def _bbox_to_ldu(box: Optional[BBox]) -> Optional[LDUBBox]:
     return LDUBBox(x0=box.x0, top=box.top, x1=box.x1, bottom=box.bottom)
 
 
+def _extract_cross_refs(text: str) -> list[str]:
+    """Detect cross-references (see Table 3, Figure 2, Section 4.2) and return resolved refs."""
+    refs = []
+    for m in re.finditer(r"(?:see\s+)?(?:Table|Figure|Section|Appendix)\s+[\d\.]+", text, re.I):
+        refs.append(m.group(0).strip())
+    for m in re.finditer(r"(?:table|figure)\s+[\d\.]+", text, re.I):
+        s = m.group(0).strip()
+        if s not in refs:
+            refs.append(s)
+    return refs
+
+
 class ChunkValidator:
     """Enforces the 5 chunking rules before emitting LDUs."""
 
@@ -76,12 +88,30 @@ class ChunkValidator:
 
     @staticmethod
     def rule4_section_headers_as_parent(ldus: list[LDU]) -> bool:
-        """Section headers stored as parent metadata on child chunks."""
+        """Every non-header chunk must have parent_section set (or 'Document' for top-level)."""
+        from src.models import ChunkType
+        for u in ldus:
+            if u.chunk_type in (ChunkType.SECTION_HEADER,):
+                continue
+            if u.parent_section is None or (isinstance(u.parent_section, str) and not u.parent_section.strip()):
+                return False
         return True
 
     @staticmethod
     def rule5_cross_refs_resolved(ldus: list[LDU]) -> bool:
-        """Cross-references resolved and stored as chunk relationships."""
+        """Chunks containing cross-ref patterns (see Table X, Figure Y, Section Z) must have cross_refs populated."""
+        cross_ref_pattern = re.compile(
+            r"(?:see|refer to|cf\.?)\s+(?:table|figure|section|appendix)\s+\d+|"
+            r"(?:table|figure|section)\s+\d+(?:\.\d+)?(?:\s+above|\s+below)?",
+            re.IGNORECASE,
+        )
+        for u in ldus:
+            if not u.content:
+                continue
+            if cross_ref_pattern.search(u.content):
+                refs = getattr(u, "cross_refs", None) or []
+                if not refs:
+                    return False
         return True
 
     @classmethod
@@ -133,10 +163,12 @@ class ChunkingEngine:
                     chunk_type=ChunkType.TABLE,
                     page_refs=[t.page],
                     bounding_box=_bbox_to_ldu(t.bbox),
+                    parent_section="Document",
                     token_count=_approx_tokens(content),
                     content_hash=_content_hash(content, t.page),
                     document_id=doc_id,
                     reading_order_index=idx,
+                    cross_refs=_extract_cross_refs(content),
                 )
             )
             idx += 1
@@ -150,16 +182,19 @@ class ChunkingEngine:
                     chunk_type=ChunkType.FIGURE,
                     page_refs=[f.page],
                     bounding_box=_bbox_to_ldu(f.bbox),
+                    parent_section="Document",
                     token_count=_approx_tokens(content),
                     content_hash=_content_hash(content, f.page),
                     document_id=doc_id,
                     reading_order_index=idx,
+                    cross_refs=[],
                 )
             )
             idx += 1
 
         # Text blocks: split by paragraph, respect max_tokens; detect lists and section headers
-        current_section: Optional[str] = None
+        # Rule 4: every non-header chunk must have parent_section (use "Document" as default)
+        current_section: Optional[str] = "Document"
         for tb in extracted.text_blocks:
             text = tb.text or ""
             page = tb.page
@@ -173,10 +208,12 @@ class ChunkingEngine:
                     current_section = p[:80]
                 tokens = _approx_tokens(p)
                 if tokens <= max_tokens:
+                    ctype = ChunkType.LIST if re.match(r"^(\d+[\.\)]\s|\-\s)", p) else ChunkType.PARAGRAPH
+                    cross_refs = _extract_cross_refs(p)
                     ldus.append(
                         LDU(
                             content=p,
-                            chunk_type=ChunkType.LIST if re.match(r"^(\d+[\.\)]\s|\-\s)", p) else ChunkType.PARAGRAPH,
+                            chunk_type=ctype,
                             page_refs=[page],
                             bounding_box=bbox,
                             parent_section=current_section,
@@ -184,6 +221,7 @@ class ChunkingEngine:
                             content_hash=_content_hash(p, page),
                             document_id=doc_id,
                             reading_order_index=idx,
+                            cross_refs=cross_refs,
                         )
                     )
                     idx += 1
@@ -194,8 +232,7 @@ class ChunkingEngine:
 
         valid, violations = ChunkValidator.validate(ldus)
         if not valid:
-            for v in violations:
-                pass
+            raise ValueError(f"ChunkValidator failed: {'; '.join(violations)}")
         return ldus
 
     def _split_long_text(
@@ -223,11 +260,12 @@ class ChunkingEngine:
                         chunk_type=ChunkType.PARAGRAPH,
                         page_refs=[page],
                         bounding_box=bbox,
-                        parent_section=parent_section,
+                        parent_section=parent_section or "Document",
                         token_count=buf_tokens,
                         content_hash=_content_hash(content, page),
                         document_id=doc_id,
                         reading_order_index=start_idx + len(chunks),
+                        cross_refs=_extract_cross_refs(content),
                     )
                 )
                 buf = []
@@ -242,11 +280,12 @@ class ChunkingEngine:
                     chunk_type=ChunkType.PARAGRAPH,
                     page_refs=[page],
                     bounding_box=bbox,
-                    parent_section=parent_section,
+                    parent_section=parent_section or "Document",
                     token_count=buf_tokens,
                     content_hash=_content_hash(content, page),
                     document_id=doc_id,
                     reading_order_index=start_idx + len(chunks),
+                    cross_refs=_extract_cross_refs(content),
                 )
             )
         return chunks

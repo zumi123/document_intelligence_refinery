@@ -1,5 +1,6 @@
-"""Query Interface Agent (Stage 5). Three tools: pageindex_navigate, semantic_search, structured_query."""
+"""Query Interface Agent (Stage 5). Three tools with routing: navigational, factual, numeric."""
 import json
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -7,8 +8,22 @@ from src.models import LDU, PageIndex, PageIndexSection, ProvenanceChain, Proven
 from src.models.provenance import BBox
 
 
+def _question_type(question: str) -> str:
+    """Route: navigational (where is X?), factual (what is X?), numeric (how much, total, sum)."""
+    q = question.lower().strip()
+    nav_patterns = [r"where\s+(?:is|are|can i find)", r"which\s+section", r"locate", r"find\s+(?:the\s+)?(?:section|chapter)"]
+    num_patterns = [r"how\s+much", r"total\s+(?:revenue|assets|expenditure)", r"sum\s+of", r"\d+\s*%", r"what\s+(?:was|is)\s+the\s+(?:total|revenue|amount)"]
+    for p in nav_patterns:
+        if re.search(p, q):
+            return "navigational"
+    for p in num_patterns:
+        if re.search(p, q):
+            return "numeric"
+    return "factual"
+
+
 class QueryAgent:
-    """Agent with pageindex_navigate, semantic_search, structured_query. All answers carry ProvenanceChain."""
+    """Agent with routing: pageindex for navigational, semantic_search for factual, structured_query for numeric."""
 
     def __init__(
         self,
@@ -96,18 +111,42 @@ class QueryAgent:
         return rows, ProvenanceChain(citations=citations)
 
     def answer(self, question: str, document_id: Optional[str] = None) -> tuple[str, ProvenanceChain]:
-        """Combine tools to answer. Tries pageindex first, then semantic search."""
+        """Route by question type: navigational -> pageindex, factual -> semantic_search, numeric -> structured_query.
+        Synthesize answer with cited pages and sections."""
+        qtype = _question_type(question)
         prov = ProvenanceChain(citations=[])
-        answer_parts = []
-        if document_id:
+        parts = []
+
+        if qtype == "navigational" and document_id:
             sections, p1 = self.pageindex_navigate(document_id, question)
             if sections:
-                answer_parts.append(f"Relevant sections: {', '.join(s.title for s in sections)}")
                 prov.citations.extend(p1.citations)
+                for s in sections[:3]:
+                    parts.append(f"**{s.title}** (pages {s.page_start}-{s.page_end}): {s.summary or 'See document.'}")
+            if parts:
+                return "\n\n".join(parts), prov
+
+        if qtype == "numeric" and self.fact_table:
+            try:
+                sql = "SELECT fact_key, fact_value FROM facts"
+                if document_id:
+                    sql = f"SELECT fact_key, fact_value FROM facts WHERE document_id = '{document_id}'"
+                rows, p2 = self.structured_query(sql)
+                prov.citations.extend(p2.citations)
+                if rows:
+                    lines = [f"- {r.get('fact_key', '')}: {r.get('fact_value', '')}" for r in rows[:10]]
+                    return "From the fact table:\n" + "\n".join(lines), prov
+            except Exception:
+                pass
+
         ldus, p2 = self.semantic_search(question, document_id=document_id, top_k=3)
+        prov.citations.extend(p2.citations)
         if ldus:
-            answer_parts.append("\n".join((u.content or "")[:300] for u in ldus[:2]))
-            prov.citations.extend(p2.citations)
-        if not answer_parts:
-            return "No relevant content found.", ProvenanceChain(citations=[])
-        return "\n\n".join(answer_parts), prov
+            for u in ldus[:2]:
+                page = u.page_refs[0] if u.page_refs else 1
+                section = getattr(u, "parent_section", None) or "Document"
+                snippet = (u.content or "")[:250]
+                parts.append(f"According to **page {page}** ({section}):\n{snippet}")
+            return "\n\n".join(parts), prov
+
+        return "No relevant content found.", prov

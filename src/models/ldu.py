@@ -32,3 +32,4 @@ class LDU(BaseModel):
     content_hash: str = Field("", description="Hash for provenance verification (e.g. spatial/content hash)")
     document_id: str = Field("", description="Source document id")
     reading_order_index: int = Field(0)
+    cross_refs: list[str] = Field(default_factory=list, description="Resolved cross-references (e.g. 'Table 3', 'Section 4.2')")

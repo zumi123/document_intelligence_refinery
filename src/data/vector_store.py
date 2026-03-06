@@ -1,12 +1,26 @@
-"""ChromaDB vector store for LDU ingestion and semantic search."""
+"""ChromaDB vector store for LDU ingestion and semantic search.
+Stores chunk_type, page_refs, content_hash, parent_section as metadata for full provenance."""
+import json
 from pathlib import Path
 from typing import Optional
 
-from src.models import LDU
+from src.models import LDU, ChunkType
+
+
+def _parse_page_refs(val) -> list[int]:
+    """Parse page_refs from stored metadata (JSON list or comma-separated)."""
+    if isinstance(val, list):
+        return [int(x) for x in val]
+    if isinstance(val, str):
+        try:
+            return [int(x) for x in json.loads(val)] if val.startswith("[") else [int(x) for x in val.split(",") if x.strip()]
+        except Exception:
+            return [1]
+    return [1]
 
 
 class VectorStore:
-    """Ingest LDUs and run semantic search. Uses ChromaDB."""
+    """Ingest LDUs and run semantic search. Stores chunk_type, page_refs, content_hash, parent_section."""
 
     def __init__(self, persist_dir: Optional[Path] = None):
         self.persist_dir = persist_dir or Path(".refinery/chromadb")
@@ -28,7 +42,7 @@ class VectorStore:
             )
 
     def ingest(self, ldus: list[LDU], document_id: str = "") -> int:
-        """Add LDUs to the vector store. Returns count ingested."""
+        """Add LDUs to the vector store. Stores chunk_type, page_refs, content_hash, parent_section."""
         self._ensure_client()
         if not ldus:
             return 0
@@ -39,10 +53,14 @@ class VectorStore:
             doc_id = ldu.document_id or document_id
             ids.append(f"{doc_id}_{i}_{ldu.reading_order_index}")
             documents.append(ldu.content or "")
+            page_refs_str = json.dumps(ldu.page_refs) if ldu.page_refs else "[1]"
             metadatas.append({
                 "document_id": doc_id,
-                "page": ldu.page_refs[0] if ldu.page_refs else 0,
+                "page": ldu.page_refs[0] if ldu.page_refs else 1,
+                "page_refs": page_refs_str,
                 "chunk_type": ldu.chunk_type.value if hasattr(ldu.chunk_type, "value") else str(ldu.chunk_type),
+                "content_hash": ldu.content_hash or "",
+                "parent_section": (ldu.parent_section or "Document")[:200],
             })
         self._collection.add(ids=ids, documents=documents, metadatas=metadatas)
         return len(ids)
@@ -53,7 +71,7 @@ class VectorStore:
         document_id: Optional[str] = None,
         top_k: int = 5,
     ) -> list[dict]:
-        """Return list of {ldu, score} dicts. Reconstructs LDU from stored metadata."""
+        """Return list of {ldu, score}. Reconstructs LDU with page_refs, content_hash, parent_section."""
         self._ensure_client()
         where = {"document_id": document_id} if document_id else None
         results = self._collection.query(
@@ -65,18 +83,19 @@ class VectorStore:
         out = []
         if not results or not results["ids"] or not results["ids"][0]:
             return out
-        for i, doc_id in enumerate(results["ids"][0]):
+        for i, _ in enumerate(results["ids"][0]):
             doc = results["documents"][0][i] if results["documents"] else ""
             meta = results["metadatas"][0][i] if results["metadatas"] else {}
             dist = results["distances"][0][i] if results.get("distances") else 0
             score = 1.0 / (1.0 + dist) if dist else 1.0
-            from src.models import ChunkType
+            page_refs = _parse_page_refs(meta.get("page_refs", meta.get("page", 1)))
             ldu = LDU(
                 content=doc,
                 chunk_type=ChunkType(meta.get("chunk_type", "paragraph")),
-                page_refs=[meta.get("page", 1)],
+                page_refs=page_refs,
                 document_id=meta.get("document_id", ""),
-                content_hash="",
+                content_hash=meta.get("content_hash", ""),
+                parent_section=meta.get("parent_section") or "Document",
             )
             out.append({"ldu": ldu, "score": score})
         return out
