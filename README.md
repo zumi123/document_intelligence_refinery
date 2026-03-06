@@ -69,12 +69,18 @@ Requires `run_interim_artifacts.py` (or equivalent) to have run first. Writes:
 | `src/models/` | Pydantic schemas: `DocumentProfile`, `ExtractedDocument`, `LDU`, `PageIndex`, `ProvenanceChain` |
 | `src/agents/triage.py` | Triage Agent (origin_type, layout_complexity, domain_hint) |
 | `src/agents/extractor.py` | ExtractionRouter with confidence-gated escalation |
+| `src/agents/chunker.py` | ChunkingEngine + ChunkValidator (5 rules) |
+| `src/agents/indexer.py` | PageIndex tree builder |
+| `src/agents/query_agent.py` | Query Agent: pageindex_navigate, semantic_search, structured_query |
 | `src/strategies/` | `FastTextExtractor`, `LayoutExtractor`, `VisionExtractor` |
+| `src/data/` | FactTable (SQLite), VectorStore (ChromaDB), Audit Mode |
 | `rubric/extraction_rules.yaml` | Thresholds, chunking, **VLM budget caps**, **layout heuristics**, **domain_keywords** (edit only to onboard new domains) |
 | `data/` | PDF corpus; see `data/CORPUS_MANIFEST.md` |
 | `.refinery/profiles/` | DocumentProfile JSON outputs |
+| `.refinery/pageindex/` | PageIndex trees (JSON) |
 | `.refinery/extraction_ledger.jsonl` | Extraction run log |
-| `DOMAIN_NOTES.md` | Phase 0 deliverable + cost analysis for report |
+| `.refinery/qa_examples/` | 12 Q&A with ProvenanceChain |
+| `DOMAIN_NOTES.md` | Phase 0 + Cost Analysis + Extraction Quality + Lessons Learned |
 
 ### Tests
 
