@@ -82,6 +82,17 @@ Requires `run_interim_artifacts.py` (or equivalent) to have run first. Writes:
 | `.refinery/qa_examples/` | 12 Q&A with ProvenanceChain |
 | `DOMAIN_NOTES.md` | Phase 0 + Cost Analysis + Extraction Quality + Lessons Learned |
 
+### Audit mode (claim verification)
+
+Explicit entry point for compliance and formal review workflows:
+
+```bash
+python scripts/audit_claim.py "The report states revenue was $4.2B in Q3"
+python scripts/audit_claim.py "Auditor issued unqualified opinion" --doc-id <document_id>
+```
+
+Returns a structured result: `decision` (verified/not_found), `citations`, `rationale`, `evidence_summary`. Requires `run_final_artifacts.py` to have populated the vector store and fact table.
+
 ### Tests
 
 ```bash
