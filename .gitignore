@@ -21,10 +21,13 @@ dist/
 *.swp
 *.swo
 
-# Refinery artifacts (regenerate in Colab with scripts/run_interim_artifacts.py)
+# Refinery artifacts (regenerate with scripts)
 .refinery/profiles/
 .refinery/pageindex/
 .refinery/*.jsonl
+.refinery/chromadb/
+.refinery/facts.db
+.refinery/qa_examples/
 
 # Keep .refinery folder structure
 !.refinery/.gitkeep

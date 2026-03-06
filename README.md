@@ -49,6 +49,19 @@ python scripts/phase0_pdfplumber_analysis.py
 python scripts/phase0_docling_analysis.py --light   # optional; use --light on low RAM
 ```
 
+**4. Full pipeline (final): PageIndex, ChromaDB, FactTable, 12 Q&A examples**
+
+```bash
+python scripts/run_final_artifacts.py
+```
+
+Requires `run_interim_artifacts.py` (or equivalent) to have run first. Writes:
+
+- `.refinery/pageindex/{doc_id}.json` — PageIndex trees
+- `.refinery/chromadb/` — Vector store (LDUs)
+- `.refinery/facts.db` — SQLite fact table
+- `.refinery/qa_examples/qa_examples.json` — 12 Q&A with ProvenanceChain
+
 ### Project layout
 
 | Path | Description |

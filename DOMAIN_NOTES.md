@@ -287,6 +287,29 @@ Estimated cost per document for each strategy tier (for interim report PDF).
 
 ---
 
+## 8. Extraction Quality Analysis (Final Report)
+
+Precision/recall on table extraction across the corpus (summary from Phase 0 and interim runs):
+
+| Document class | Tables present | Extracted as JSON | Headers preserved | Notes |
+|----------------|----------------|-------------------|-------------------|-------|
+| A (CBE Annual) | Yes (income, balance) | Strategy B (Docling) | Yes when layout works | Fast text yields raw text; layout preserves structure. |
+| B (Scanned audit) | Yes | OCR/VLM required | Depends on OCR quality | pdfplumber returns nothing; Docling OCR or VLM needed. |
+| C (FTA report) | Yes (findings tables) | Layout | Yes | Mixed narrative+tables; layout adapter critical. |
+| D (Tax expenditure) | Dense multi-year | Layout | Yes | Numerical fidelity requires structured table extraction. |
+
+**Limitation:** Ground-truth table annotations were not available; precision/recall are qualitative from manual inspection. For production, run against annotated test set and report F1.
+
+---
+
+## 9. Lessons Learned (Final Report)
+
+**Lesson 1 — Scanned documents break fast text:** On `Audit Report - 2023.pdf`, pdfplumber returned ~1 char/page (image-only). The triage correctly classified `scanned_image` and routed to Strategy C. Initially we had no VLM implementation; the stub returned placeholder text. **Fix:** Ensure escalation path exists and ledger logs `strategy_used=vision`; when VLM is implemented, it will receive these docs automatically.
+
+**Lesson 2 — Docling table structure varies:** The layout adapter assumed `doc.tables` with `.headers` and `.rows`. On some Docling versions or document types, tables use `.data` or different shapes. **Fix:** Added `_safe_headers_rows()` and `_safe_caption()` to normalize multiple formats; fallback to `.data` with first row as header when `.headers`/`.rows` are missing.
+
+---
+
 ## 6. References (Tooling & Concepts)
 
 - **MinerU**: PDF-Extract-Kit → layout → formula/table → Markdown; multi-model pipeline.
